@@ -104,3 +104,24 @@ esses arquivos gerados localmente. Os pesos desta distribuicao tem menos de
 
 Os componentes e modelos de terceiros continuam sujeitos as respectivas licencas.
 Este pacote nao atribui uma nova licenca aos pesos ou aos dados usados no treino.
+
+
+## Captura automatica durante varias horas
+
+```powershell
+.\.venv\Scripts\python.exe 07_testar_epis.py --fonte 1 --intervalo 5
+```
+
+O modelo continua detectando na tela; a cada 5 segundos uma foto limpa e salva
+em `capturas_epis_limpas/sessao_.../`, em JPEG qualidade 95. A primeira foto e
+salva aproximadamente 5 segundos depois do primeiro quadro. Nao depende de
+haver deteccoes. S continua salvando fotos extras em PNG. Q/Esc ou Ctrl+C encerra.
+Sem `--intervalo`, a captura continua manual. O programa nao encerra sozinho em 4 horas.
+Em 4 horas, espere cerca de 2.880 fotos automaticas, dependendo do desempenho.
+Nao ha pausa de 5 segundos no video nem acumulo de fotos na memoria. A gravacao
+em disco pode causar uma pequena pausa; atrasos nao provocam rajadas de capturas.
+O total salvo e mostrado ao encerrar. Falhas de camera/disco encerram com mensagem.
+Mantenha o computador ligado a energia, com suspensao automatica desativada e
+espaco livre no disco. O tamanho total depende do conteudo das imagens.
+
+Guia completo de comandos: [COMANDOS.md](COMANDOS.md).

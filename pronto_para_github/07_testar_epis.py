@@ -1,5 +1,7 @@
 """Teste local dos EPIs: câmera USB, vídeo ou imagem, sem treinamento."""
 import argparse
+import math
+from datetime import datetime
 from collections import Counter
 from pathlib import Path
 import threading
@@ -14,6 +16,45 @@ ROOT = Path(__file__).resolve().parent
 NAMES = {0: 'luvas', 1: 'soldador', 2: 'avental_soldagem', 3: 'mascara_soldagem'}
 LABELS = {0: 'Luvas', 1: 'Soldador', 2: 'Avental', 3: 'Mascara'}
 COLORS = {0: (70, 215, 245), 1: (240, 180, 70), 2: (140, 220, 110), 3: (220, 140, 230)}
+
+
+def open_camera(index):
+    """Tenta backends no mesmo indice, sem trocar silenciosamente a camera."""
+    backends = [('DirectShow', cv2.CAP_DSHOW), ('Media Foundation', cv2.CAP_MSMF),
+                ('automatico', cv2.CAP_ANY)] if __import__('sys').platform == 'win32' else [('automatico', cv2.CAP_ANY)]
+    for name, backend in backends:
+        cap = cv2.VideoCapture(index, backend)
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            ok, frame = cap.read()
+            if ok and frame is not None:
+                print(f'Camera {index} aberta via {name}.', flush=True)
+                return cap
+        cap.release()
+        print(f'Camera {index}: {name} nao forneceu imagem.', flush=True)
+    raise RuntimeError(f'Camera {index} indisponivel. Feche Camera/Teams/Zoom/dashboard, '
+                       'confira a permissao de camera para aplicativos da area de trabalho '
+                       'no Windows e teste outro indice com --fonte 0, 1 ou 2.')
+
+
+class CaptureTimer:
+    """Relogio monotono: sem sleep e sem rajadas para recuperar atrasos."""
+    def __init__(self, interval):
+        self.interval = interval
+        self.next_at = None
+
+    def due(self, now):
+        if not self.interval:
+            return False
+        if self.next_at is None:
+            self.next_at = now + self.interval
+            return False
+        if now < self.next_at:
+            return False
+        self.next_at = now + self.interval
+        return True
 
 
 class LatestCamera:
@@ -104,7 +145,13 @@ def main():
     parser.add_argument('--sem-janela', action='store_true')
     parser.add_argument('--limite', type=int, default=0, help='Máximo de quadros analisados; 0 = sem limite')
     parser.add_argument('--saida', type=Path, help='Salvar a última imagem anotada ao encerrar')
+    parser.add_argument('--intervalo', type=float, default=0,
+                        help='Salvar foto limpa automaticamente a cada N segundos; 0 desativa')
     args = parser.parse_args()
+    if not math.isfinite(args.intervalo) or args.intervalo < 0:
+        parser.error('--intervalo deve ser um numero finito >= 0.')
+    if args.intervalo and not args.fonte.isdecimal():
+        parser.error('--intervalo e destinado a camera: use --fonte 0, 1 ou 2.')
     if not args.modelo.is_file():
         parser.error(f'Modelo não encontrado: {args.modelo}')
     if not 0 < args.conf < 1 or args.imgsz < 32 or args.imgsz % 32 or args.limite < 0:
@@ -127,14 +174,15 @@ def main():
     durations = []
     begin = previous = time.perf_counter()
     title = 'EPIs - teste local'
+    timer = CaptureTimer(args.intervalo)
+    automatic_count = 0
+    capture_folder = ROOT/'capturas_epis_limpas'/f'sessao_{datetime.now():%Y%m%d_%H%M%S}_{time.time_ns()}'
+    if args.intervalo:
+        print(f'Captura automatica: {args.intervalo:g}s | JPEG qualidade 95 | {capture_folder}', flush=True)
     try:
         if is_camera or not is_image:
             if is_camera:
-                backend = cv2.CAP_DSHOW if __import__('sys').platform == 'win32' else cv2.CAP_ANY
-                cap = cv2.VideoCapture(int(args.fonte), backend)
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                cap = open_camera(int(args.fonte))
             else:
                 cap = cv2.VideoCapture(str(path))
             if not cap.isOpened():
@@ -164,6 +212,9 @@ def main():
                 captured = time.perf_counter()
             if args.espelhar and is_camera:
                 frame = cv2.flip(frame, 1)
+            if timer.due(time.monotonic()):
+                save_image(capture_folder/f'epis_{time.time_ns()}.jpg', frame)
+                automatic_count += 1
             start = time.perf_counter()
             result = model.predict(frame, imgsz=args.imgsz, conf=args.conf, device=device, verbose=False)[0]
             now = time.perf_counter()
@@ -214,6 +265,8 @@ def main():
         elif cap:
             cap.release()
         cv2.destroyAllWindows()
+        if args.intervalo:
+            print(f'Fotos automaticas salvas: {automatic_count} | {capture_folder}', flush=True)
     if args.saida and screen is not None:
         save_image(args.saida, screen)
     if count:
@@ -223,7 +276,8 @@ def main():
 
 def save_image(path, image):
     path.parent.mkdir(parents=True, exist_ok=True)
-    ok, data = cv2.imencode(path.suffix or '.png', image)
+    params = [cv2.IMWRITE_JPEG_QUALITY, 95] if path.suffix.lower() in {'.jpg', '.jpeg'} else []
+    ok, data = cv2.imencode(path.suffix or '.png', image, params)
     if not ok:
         raise RuntimeError(f'Falha ao salvar {path}')
     data.tofile(path)

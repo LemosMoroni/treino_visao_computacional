@@ -25,7 +25,7 @@ Nao precisa ativar a .venv para usar estes comandos. Nao copie ambientes de outr
 ```
 
 Indice 1 costuma ser USB; tente 0 ou 2 conforme a maquina. Feche outros programas
-que estejam usando a camera. A janela mostra deteccoes do modelo v3.
+que estejam usando a camera. A janela mostra deteccoes do modelo v6.
 S salva foto limpa; Q/Esc encerra. C solicita configuracoes do driver no Windows.
 A captura solicita 1280x720; a inferencia usa tamanho 640 por padrao.
 
@@ -61,12 +61,39 @@ e um prototipo e nao comprova uso correto de EPI.
 Historico local criado em dados_dashboard/. Fechar o navegador nao encerra o servidor;
 use Ctrl+C. Captura automatica de fotos existe no script 07, nao no dashboard.
 
+## Pre-anotar fotos para o CVAT
+
+Em vez de desenhar todas as caixas do zero, o script 08 roda o modelo nas fotos
+limpas e gera um ZIP no formato YOLO 1.1, que o CVAT importa como anotacao inicial.
+
+```powershell
+.\.venv\Scripts\python.exe 08_pre_anotar_cvat.py capturas_epis_limpas\sessao_XXXX
+.\.venv\Scripts\python.exe 08_pre_anotar_cvat.py capturas_epis_limpas\sessao_XXXX --conf 0.25
+```
+
+Sem argumento, le `capturas_epis_limpas/` (sem subpastas). Gera
+`<pasta>_pre_anotacoes_cvat.zip` e mostra quantas caixas de cada classe encontrou.
+`--conf` (padrao 0.35) e a confianca minima: valores menores trazem mais caixas,
+inclusive erradas. `--modelo` e `--saida` trocam o modelo e o nome do ZIP.
+
+No CVAT:
+1. Crie a task com as mesmas imagens, sem renomear, e os labels nesta ordem:
+   luvas, soldador, avental_soldagem, mascara_soldagem.
+2. Actions > Upload annotations > formato YOLO 1.1 > escolha o ZIP.
+3. Revise todas as imagens: ajuste caixas, apague falsos positivos e marque o que
+   faltou. Luvas sao pouco detectadas e normalmente precisam ser marcadas a mao.
+
+As caixas sao so um ponto de partida. Aceita-las sem revisar faz o proximo treino
+aprender os mesmos erros do modelo atual.
+
 ## Arquivos necessarios
 
 - 07_testar_epis.py: camera, inferencia e captura; tambem importado pelo dashboard.
 - dashboard_epis/server.py e core.py: servidor e regras.
 - dashboard_epis/static/: interface HTML, CSS e JavaScript.
-- weights/epis_v3_best.pt: unico modelo distribuido.
+- weights/epis_v6_best.pt: modelo padrao (camera, dashboard e script 08).
+- weights/epis_v3_best.pt: modelo anterior; use com --modelo weights/epis_v3_best.pt.
+- 08_pre_anotar_cvat.py: pre-anotacao das fotos limpas para o CVAT.
 - requirements.txt: dependencias.
 - iniciar_epis.bat e iniciar_dashboard.bat: atalhos opcionais.
 

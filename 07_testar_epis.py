@@ -136,7 +136,7 @@ def render(frame, result, fps, elapsed_ms, age_ms, confidence, model_name):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--modelo', type=Path, default=ROOT/'weights/epis_v3_best.pt')
+    parser.add_argument('--modelo', type=Path, default=ROOT/'weights/epis_v6_best.pt')
     parser.add_argument('--fonte', default='0', help='Índice da câmera (0, 1...) ou caminho de vídeo/imagem')
     parser.add_argument('--imgsz', type=int, default=640)
     parser.add_argument('--conf', type=float, default=.40)

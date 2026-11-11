@@ -120,7 +120,7 @@ class Engine:
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--port',type=int,default=8765)
-    parser.add_argument('--modelo',type=Path,default=ROOT/'weights/epis_v3_best.pt')
+    parser.add_argument('--modelo',type=Path,default=ROOT/'weights/epis_v6_best.pt')
     parser.add_argument('--camera',type=int,default=0)
     parser.add_argument('--imgsz',type=int,default=640)
     parser.add_argument('--luvas',type=int,choices=[1,2],default=1)

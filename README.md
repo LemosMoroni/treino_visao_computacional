@@ -25,7 +25,7 @@ Nao precisa ativar a .venv para usar estes comandos. Nao copie ambientes de outr
 ```
 
 Indice 1 costuma ser USB; tente 0 ou 2 conforme a maquina. Feche outros programas
-que estejam usando a camera. A janela mostra deteccoes do modelo v6.
+que estejam usando a camera. A janela mostra deteccoes do modelo v7.
 S salva foto limpa; Q/Esc encerra. C solicita configuracoes do driver no Windows.
 A captura solicita 1280x720; a inferencia usa tamanho 640 por padrao.
 
@@ -86,13 +86,22 @@ No CVAT:
 As caixas sao so um ponto de partida. Aceita-las sem revisar faz o proximo treino
 aprender os mesmos erros do modelo atual.
 
+## Modelo v7
+
+Ajuste do v6 somente com fotos proprias da cabine, anotadas no CVAT. No teste
+(184 imagens), mAP50 geral foi de 0,803 (v6) para 0,857 (v7). Luvas foi de 0,515
+para 0,774 e mascara de 0,916 para 0,959; soldador ficou igual (0,93). Avental caiu
+de 0,845 para 0,764 por diferenca de criterio de anotacao em uma das sessoes, nao
+por piora do modelo nas outras. Luvas continuam sendo o ponto mais fraco: o modelo
+ainda deixa de detectar parte delas.
+
 ## Arquivos necessarios
 
 - 07_testar_epis.py: camera, inferencia e captura; tambem importado pelo dashboard.
 - dashboard_epis/server.py e core.py: servidor e regras.
 - dashboard_epis/static/: interface HTML, CSS e JavaScript.
-- weights/epis_v6_best.pt: modelo padrao (camera, dashboard e script 08).
-- weights/epis_v3_best.pt: modelo anterior; use com --modelo weights/epis_v3_best.pt.
+- weights/epis_v7_best.pt: modelo padrao (camera, dashboard e script 08).
+- weights/epis_v6_best.pt e epis_v3_best.pt: modelos anteriores; use com --modelo weights/epis_v6_best.pt.
 - 08_pre_anotar_cvat.py: pre-anotacao das fotos limpas para o CVAT.
 - requirements.txt: dependencias.
 - iniciar_epis.bat e iniciar_dashboard.bat: atalhos opcionais.

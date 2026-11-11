@@ -1,7 +1,7 @@
 """Pré-anota fotos com o modelo de EPIs e gera um zip YOLO 1.1 para importar no CVAT.
 
 Uso:
-    python 08_pre_anotar_cvat.py [pasta_imagens] [--modelo weights/epis_v6_best.pt] [--conf 0.35]
+    python 08_pre_anotar_cvat.py [pasta_imagens] [--modelo weights/epis_v7_best.pt] [--conf 0.35]
 
 No CVAT:
     1. Crie a task com as MESMAS imagens (mesmos nomes de arquivo) e os labels
@@ -26,7 +26,7 @@ EXTENSOES = {'.jpg', '.jpeg', '.png', '.bmp'}
 
 p = argparse.ArgumentParser()
 p.add_argument('pasta', nargs='?', default='capturas_epis_limpas')
-p.add_argument('--modelo', default=str(ROOT / 'weights/epis_v6_best.pt'))
+p.add_argument('--modelo', default=str(ROOT / 'weights/epis_v7_best.pt'))
 p.add_argument('--conf', type=float, default=0.35, help='confiança mínima da caixa')
 p.add_argument('--imgsz', type=int, default=640)
 p.add_argument('--saida', default=None, help='zip de saída (padrão: <pasta>_pre_anotacoes_cvat.zip)')

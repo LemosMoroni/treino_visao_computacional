@@ -63,8 +63,9 @@ class History:
 
 
 class ReleaseGate:
-    def __init__(self, history, model, stable=1.0, grace=1.0):
+    def __init__(self, history, model, stable=1.0, grace=1.0, continuous=False):
         self.history, self.model, self.stable, self.grace = history, model, stable, grace
+        self.continuous = continuous
         self.since = None
         self.active = None
         self.started = None
@@ -74,8 +75,10 @@ class ReleaseGate:
         # Depois de liberado, o sinal fica verde enquanto a pessoa continuar na
         # câmera (present), mesmo que algum EPI deixe de ser detectado. Só termina
         # quando ela some por mais de `grace` segundos (tolera falhas de um quadro).
+        # No modo contínuo, a liberação exige os EPIs o tempo todo: se faltar
+        # algum por mais de `grace` segundos, o sinal volta a vermelho.
         if self.active is not None:
-            if present:
+            if ready if self.continuous else present:
                 self.lost = None
                 return 'released', 1.0
             if self.lost is None:

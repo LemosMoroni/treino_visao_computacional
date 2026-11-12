@@ -119,3 +119,8 @@ body:not(.idle) .checklist>div{border-color:#fff}
 .model-pick{display:flex;align-items:center;gap:8px;color:var(--ink);font-size:13px;font-weight:700}
 .model-pick select{padding:8px 12px;border-radius:8px;border:2px solid var(--ink);background:#fff;color:var(--ink);font:700 13px 'Segoe UI',sans-serif;cursor:pointer}
 .model-pick select:disabled{opacity:.5;cursor:wait}
+.glove-option{min-width:34px;padding:8px 10px;border:2px solid var(--ink);background:#fff;color:var(--ink);font:700 13px 'Segoe UI',sans-serif;cursor:pointer}
+.glove-option+.glove-option{margin-left:-8px;border-left-width:0}
+.glove-option:first-of-type{border-radius:8px 0 0 8px}.glove-option:last-of-type{border-radius:0 8px 8px 0}
+.glove-option.active{background:var(--ink);color:#fff}
+.glove-option:disabled{opacity:.5;cursor:wait}

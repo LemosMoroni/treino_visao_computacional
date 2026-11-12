@@ -55,9 +55,12 @@ simultaneamente. Atalhos equivalentes:
 
 O dashboard registra uma liberacao por periodo verde, apos 1 segundo de deteccoes
 associadas a uma pessoa: mascara, avental e pelo menos uma luva. Depois de liberado,
-o verde permanece ate a pessoa sair da camera. O modelo pode ser trocado pelo seletor
-no cabecalho (arquivos weights/epis_*.pt). Nao mede soldas
-fisicamente realizadas. --luvas 2 exige duas deteccoes, sem garantir maos distintas.
+o verde permanece ate a pessoa sair da camera (modo "Libera"). No modo "Continuo"
+os EPIs seguem sendo conferidos e o sinal volta a vermelho se algum faltar por mais
+de 1 segundo. O cabecalho tem seletores para o modelo (arquivos weights/epis_*.pt),
+o minimo de luvas (1 ou 2) e o modo; os valores iniciais vem de --luvas 2 e
+--continuo. Nao mede soldas fisicamente realizadas. Duas luvas sao duas deteccoes,
+sem garantir maos distintas.
 LEDs sao simulados, sem GPIO ou acionamento fisico. Deteccoes podem errar; o sistema
 e um prototipo e nao comprova uso correto de EPI.
 Historico local criado em dados_dashboard/. Fechar o navegador nao encerra o servidor;

@@ -19,10 +19,11 @@ STATIC=Path(__file__).resolve().parent/'static'
 
 
 class Engine:
-    def __init__(self, history, model, source, imgsz, gloves):
+    def __init__(self, history, model, source, imgsz, gloves, continuous=False):
         self.history,self.model,self.source,self.imgsz,self.gloves=history,model,source,imgsz,gloves
+        self.continuous=continuous
         self.lock=threading.RLock();self.stop=threading.Event();self.thread=None
-        self.gate=ReleaseGate(history,model.name)
+        self.gate=ReleaseGate(history,model.name,continuous=continuous)
         self.jpeg=None;self.last=0;self.person=None
         self.state=dict(camera='off',status='denied',reason='Câmera desligada',progress=0,
                         found={'mascara':False,'avental':False,'luvas':False},fps=0,latency=0,resolution='—',error=None)
@@ -66,8 +67,19 @@ class Engine:
         if thread and thread.is_alive():raise RuntimeError('A câmera não parou a tempo; tente de novo.')
         with self.lock:
             self.model=self.model.parent/name
-            self.gate=ReleaseGate(self.history,name)
+            self.gate=ReleaseGate(self.history,name,continuous=self.continuous)
         if restart:self.start()
+
+    def set_continuous(self, continuous):
+        with self.lock:
+            self.continuous=self.gate.continuous=bool(continuous)
+
+    def set_gloves(self, count):
+        if count not in (1,2):raise ValueError('Mínimo de luvas deve ser 1 ou 2.')
+        with self.lock:
+            if count==self.gloves:return
+            self.gloves=count
+            if self.state['camera']=='on':self.deny(f'Mínimo de luvas alterado para {count}; nova conferência')
 
     def run(self):
         camera=cap=None
@@ -92,7 +104,7 @@ class Engine:
                 result=model.predict(frame,imgsz=self.imgsz,conf=.40,device=device,verbose=False)[0]
                 detections=[{'class':int(b.cls.item()),'confidence':round(float(b.conf.item()),3),
                              'box':list(map(float,b.xyxy[0].tolist()))} for b in result.boxes]
-                ready,reason,found,person=assess(detections,self.gloves)
+                gloves=self.gloves;ready,reason,found,person=assess(detections,gloves)
                 annotated=frame.copy()
                 for d in detections:
                     a,b,c,e=map(int,d['box']);cl=d['class'];color=module.COLORS[cl]
@@ -103,13 +115,14 @@ class Engine:
                 now=time.monotonic()
                 with self.lock:
                     if self.stop.is_set():break
+                    if gloves!=self.gloves:continue
                     if self.gate.active is None and self.person is not None and person is not None and iou(person,self.person)<.3:
                         self.deny('Pessoa mudou de posição; nova conferência')
                     self.person=person
                     if time.perf_counter()-captured>2:
                         ready=False;reason='Imagem atrasada: aguarde nova captura';self.deny(reason)
                     status,progress=self.gate.update(ready,now,reason,{'found':found,'detections':detections,'required_gloves':self.gloves},present=person is not None)
-                    if status=='released':reason='Liberado até o soldador sair da câmera'
+                    if status=='released':reason='Liberado enquanto todos os EPIs forem detectados' if self.continuous else 'Liberado até o soldador sair da câmera'
                     self.state.update(camera='on',status=status,reason=reason,progress=progress,found=found,
                                       fps=round(1/max(now-begin,.001),1),latency=round((now-begin)*1000),
                                       resolution=f'{frame.shape[1]} × {frame.shape[0]}',error=None)
@@ -127,7 +140,7 @@ class Engine:
     def snapshot(self):
         with self.lock:
             result=dict(self.state)
-            result.update(model=self.model.name,stable=self.gate.stable,models=self.models(),required_gloves=self.gloves,
+            result.update(model=self.model.name,stable=self.gate.stable,models=self.models(),required_gloves=self.gloves,continuous=self.continuous,
                           active_id=self.gate.active,active_seconds=round(time.monotonic()-self.gate.started) if self.gate.started is not None else 0,
                           led_green=self.state['status']=='released',led_red=self.state['status']!='released')
             return result
@@ -140,11 +153,12 @@ def main():
     parser.add_argument('--camera',type=int,default=0)
     parser.add_argument('--imgsz',type=int,default=640)
     parser.add_argument('--luvas',type=int,choices=[1,2],default=1)
+    parser.add_argument('--continuo',action='store_true',help='Exige os EPIs o tempo todo, e não só na liberação')
     parser.add_argument('--db',type=Path,default=ROOT/'dados_dashboard/epis.sqlite3')
     parser.add_argument('--abrir',action='store_true')
     args=parser.parse_args()
     if not args.modelo.is_file():parser.error('Modelo não encontrado.')
-    history=History(args.db);engine=Engine(history,args.modelo,args.camera,args.imgsz,args.luvas)
+    history=History(args.db);engine=Engine(history,args.modelo,args.camera,args.imgsz,args.luvas,args.continuo)
     token=secrets.token_urlsafe(32)
 
     class Handler(BaseHTTPRequestHandler):
@@ -187,6 +201,14 @@ def main():
                     body=json.loads(self.rfile.read(min(int(self.headers.get('Content-Length') or 0),1000)) or b'{}')
                     try:engine.set_model(str(body.get('name','')))
                     except ValueError as exc:return self.send(400,{'error':str(exc)})
+                elif self.path=='/api/mode':
+                    body=json.loads(self.rfile.read(min(int(self.headers.get('Content-Length') or 0),1000)) or b'{}')
+                    if not isinstance(body.get('continuous'),bool):return self.send(400,{'error':'Modo inválido.'})
+                    engine.set_continuous(body['continuous'])
+                elif self.path=='/api/gloves':
+                    body=json.loads(self.rfile.read(min(int(self.headers.get('Content-Length') or 0),1000)) or b'{}')
+                    try:engine.set_gloves(int(body.get('count',0)))
+                    except (TypeError,ValueError) as exc:return self.send(400,{'error':str(exc)})
                 else:return self.send(404,{'error':'Não encontrado'})
                 self.send(200,engine.snapshot())
             except Exception as exc:self.send(500,{'error':str(exc)})

@@ -53,8 +53,10 @@ simultaneamente. Atalhos equivalentes:
 .\iniciar_dashboard.bat --camera 1
 ```
 
-O dashboard registra uma liberacao por periodo verde, apos 3 segundos de deteccoes
-associadas a uma pessoa: mascara, avental e pelo menos uma luva. Nao mede soldas
+O dashboard registra uma liberacao por periodo verde, apos 1 segundo de deteccoes
+associadas a uma pessoa: mascara, avental e pelo menos uma luva. Depois de liberado,
+o verde permanece ate a pessoa sair da camera. O modelo pode ser trocado pelo seletor
+no cabecalho (arquivos weights/epis_*.pt). Nao mede soldas
 fisicamente realizadas. --luvas 2 exige duas deteccoes, sem garantir maos distintas.
 LEDs sao simulados, sem GPIO ou acionamento fisico. Deteccoes podem errar; o sistema
 e um prototipo e nao comprova uso correto de EPI.

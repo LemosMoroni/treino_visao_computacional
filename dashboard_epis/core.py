@@ -63,13 +63,27 @@ class History:
 
 
 class ReleaseGate:
-    def __init__(self, history, model, stable=3.0):
-        self.history, self.model, self.stable = history, model, stable
+    def __init__(self, history, model, stable=1.0, grace=1.0):
+        self.history, self.model, self.stable, self.grace = history, model, stable, grace
         self.since = None
         self.active = None
         self.started = None
+        self.lost = None
 
-    def update(self, ready, now, reason, evidence):
+    def update(self, ready, now, reason, evidence, present=False):
+        # Depois de liberado, o sinal fica verde enquanto a pessoa continuar na
+        # câmera (present), mesmo que algum EPI deixe de ser detectado. Só termina
+        # quando ela some por mais de `grace` segundos (tolera falhas de um quadro).
+        if self.active is not None:
+            if present:
+                self.lost = None
+                return 'released', 1.0
+            if self.lost is None:
+                self.lost = now
+            if now-self.lost < self.grace:
+                return 'released', 1.0
+            self.deny(now, reason)
+            return 'denied', 0.0
         if not ready:
             self.deny(now, reason)
             return 'denied', 0.0
@@ -83,7 +97,7 @@ class ReleaseGate:
 
     def deny(self, now, reason):
         ident, started = self.active, self.started
-        self.active = self.started = self.since = None
+        self.active = self.started = self.since = self.lost = None
         if ident is not None:
             self.history.end(ident, now-started, reason)
 

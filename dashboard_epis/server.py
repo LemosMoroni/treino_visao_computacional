@@ -54,6 +54,21 @@ class Engine:
             self.deny('Câmera desligada');self.state.update(camera='off',fps=0,found={k:False for k in self.state['found']})
             self.jpeg=None
 
+    def models(self):
+        return sorted(p.name for p in self.model.parent.glob('epis_*.pt'))
+
+    def set_model(self, name):
+        if name not in self.models():raise ValueError('Modelo não encontrado.')
+        with self.lock:
+            thread=self.thread;restart=self.state['camera'] in ('on','starting')
+        self.halt()
+        if thread:thread.join(15)
+        if thread and thread.is_alive():raise RuntimeError('A câmera não parou a tempo; tente de novo.')
+        with self.lock:
+            self.model=self.model.parent/name
+            self.gate=ReleaseGate(self.history,name)
+        if restart:self.start()
+
     def run(self):
         camera=cap=None
         try:
@@ -88,12 +103,13 @@ class Engine:
                 now=time.monotonic()
                 with self.lock:
                     if self.stop.is_set():break
-                    if self.person is not None and person is not None and iou(person,self.person)<.3:
+                    if self.gate.active is None and self.person is not None and person is not None and iou(person,self.person)<.3:
                         self.deny('Pessoa mudou de posição; nova conferência')
                     self.person=person
                     if time.perf_counter()-captured>2:
-                        ready=False;reason='Imagem atrasada: aguarde nova captura'
-                    status,progress=self.gate.update(ready,now,reason,{'found':found,'detections':detections,'required_gloves':self.gloves})
+                        ready=False;reason='Imagem atrasada: aguarde nova captura';self.deny(reason)
+                    status,progress=self.gate.update(ready,now,reason,{'found':found,'detections':detections,'required_gloves':self.gloves},present=person is not None)
+                    if status=='released':reason='Liberado até o soldador sair da câmera'
                     self.state.update(camera='on',status=status,reason=reason,progress=progress,found=found,
                                       fps=round(1/max(now-begin,.001),1),latency=round((now-begin)*1000),
                                       resolution=f'{frame.shape[1]} × {frame.shape[0]}',error=None)
@@ -111,7 +127,7 @@ class Engine:
     def snapshot(self):
         with self.lock:
             result=dict(self.state)
-            result.update(model=self.model.name,required_gloves=self.gloves,
+            result.update(model=self.model.name,stable=self.gate.stable,models=self.models(),required_gloves=self.gloves,
                           active_id=self.gate.active,active_seconds=round(time.monotonic()-self.gate.started) if self.gate.started is not None else 0,
                           led_green=self.state['status']=='released',led_red=self.state['status']!='released')
             return result
@@ -167,6 +183,10 @@ def main():
             try:
                 if self.path=='/api/start':engine.start()
                 elif self.path=='/api/stop':engine.halt()
+                elif self.path=='/api/model':
+                    body=json.loads(self.rfile.read(min(int(self.headers.get('Content-Length') or 0),1000)) or b'{}')
+                    try:engine.set_model(str(body.get('name','')))
+                    except ValueError as exc:return self.send(400,{'error':str(exc)})
                 else:return self.send(404,{'error':'Não encontrado'})
                 self.send(200,engine.snapshot())
             except Exception as exc:self.send(500,{'error':str(exc)})

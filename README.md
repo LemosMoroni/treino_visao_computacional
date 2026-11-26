@@ -120,3 +120,58 @@ Esta distribuicao e para computador; Raspberry Pi 3 exige adaptacao e validacao.
 Envie apenas o conteudo desta pasta, incluindo o .gitignore. Fotos, bancos e .venv
 nao devem ser enviados. Nao adicione a pasta inteira do projeto de treinamento.
 Dependencias e pesos de terceiros continuam sujeitos as suas respectivas licencas.
+
+## Alerta: mascara levantada com arco aceso
+
+O dashboard emite um alerta (faixa vermelha piscando, som e borda vermelha na imagem)
+quando ha arco aceso e a mascara da pessoa esta levantada por mais de 0,5 s. O alerta
+termina 1 s depois que a mascara abaixa ou o arco apaga, e fica registrado no historico
+(card "Alertas hoje" e botao "Alertas" para exportar CSV). O som so toca depois de
+algum clique na pagina (regra do navegador).
+
+Dois classificadores pequenos fazem isso, alem do detector de EPIs:
+
+- `weights/mascara_cls_v*_best.pt`: recorte da mascara -> abaixada / levantada
+- `weights/arco_cls_v*_best.pt`: imagem inteira -> arco / sem_arco
+
+O dashboard carrega a versao mais alta de cada um (ou use `--mascara-modelo` e
+`--arco-modelo`). Sem o modelo de arco, o botao **Simular arco** no cabecalho finge
+que ha arco, para testar o alerta da mascara sem soldar. Mascara nao visivel durante o
+arco nao gera alerta. Para testar sem camera, `--camera` aceita um arquivo de video.
+
+So contar pixels claros nao detecta o arco nestas cameras: a parede branca estoura
+sem arco e, com exposicao baixa, o arco aparece so como faiscas laranja. Por isso o
+arco tambem e um classificador treinado com as fotos.
+
+### Treinar os classificadores
+
+1. Gerar as imagens (inclua sessoes com o arco aceso):
+
+```powershell
+# mascara: recortes a partir das caixas do CVAT (ou do v7, sem --anotacoes)
+.\.venv\Scripts\python.exe 09_recortar_mascaras.py datasets/soldatech_fotos --anotacoes
+# arco: fotos inteiras reduzidas
+.\.venv\Scripts\python.exe 12_quadros_arco.py datasets/soldatech_fotos
+```
+
+2. Separar pelo teclado (o progresso fica salvo; Q sai):
+
+```powershell
+.\.venv\Scripts\python.exe 11_separar_recortes.py                 # A abaixada, L levantada, D descartar
+.\.venv\Scripts\python.exe 11_separar_recortes.py --tarefa arco   # A arco, S sem arco, D descartar
+```
+
+   Espaco pula, Z desfaz. `--origem levantada` revisa uma pasta ja separada.
+   No 09, `--cabeca` tambem recorta a cabeca de pessoas sem mascara detectada.
+
+3. Treinar no Colab:
+
+```powershell
+.\.venv\Scripts\python.exe 10_treinar_mascara.py --tarefa mascara --empacotar   # ou --tarefa arco
+```
+
+   Envie o zip gerado (`mascara_recortes_colab.zip` ou `arco_quadros_colab.zip`) para
+   `MyDrive/wmm_mascara/`, abra `treinar_mascara_colab.ipynb` no Colab com GPU, ajuste
+   `TAREFA` na segunda celula e execute. Copie o `.pt` resultante do Drive para `weights/`.
+   A validacao usa pessoas inteiras separadas do treino.
+   (Treinar localmente tambem funciona, sem `--empacotar`; lento em CPU.)

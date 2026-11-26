@@ -123,11 +123,15 @@ Dependencias e pesos de terceiros continuam sujeitos as suas respectivas licenca
 
 ## Alerta: mascara levantada com arco aceso
 
-O dashboard emite um alerta (faixa vermelha piscando, som e borda vermelha na imagem)
+O dashboard emite um alerta (faixa vermelha piscando, sirene e borda vermelha na imagem)
 quando ha arco aceso e a mascara da pessoa esta levantada por mais de 0,5 s. O alerta
 termina 1 s depois que a mascara abaixa ou o arco apaga, e fica registrado no historico
-(card "Alertas hoje" e botao "Alertas" para exportar CSV). O som so toca depois de
-algum clique na pagina (regra do navegador).
+(card "Alertas hoje" e botao "Alertas" para exportar CSV).
+
+A sirene (650-1750 Hz, onda quadrada, amplitude maxima) e tocada pelo proprio programa
+no computador do dashboard, mesmo com o navegador fechado. Deixe o volume do Windows
+no maximo e use caixas de som amplificadas: o volume final depende delas. Com
+`--sem-sirene`, o som passa a sair so pelo navegador (apos um clique na pagina).
 
 Dois classificadores pequenos fazem isso, alem do detector de EPIs:
 

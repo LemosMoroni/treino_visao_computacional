@@ -13,6 +13,7 @@ import threading
 import time
 import webbrowser
 import re
+from sirene import Sirene
 from core import AlertGate, History, ReleaseGate, Smooth, assess, iou, person_mask, square_crop
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -42,10 +43,10 @@ class FileCamera:
 
 
 class Engine:
-    def __init__(self, history, model, source, imgsz, gloves, continuous=False, mask_model=None, arc_model=None):
+    def __init__(self, history, model, source, imgsz, gloves, continuous=False, mask_model=None, arc_model=None, siren=None):
         self.history,self.model,self.source,self.imgsz,self.gloves=history,model,source,imgsz,gloves
         self.continuous=continuous;self.mask_model=mask_model;self.arc_model=arc_model;self.arc_test=False
-        self.alert=AlertGate(history,'mascara_levantada_com_arco')
+        self.alert=AlertGate(history,'mascara_levantada_com_arco');self.siren=siren
         self.mask_smooth=Smooth(.5,1.0);self.arc_smooth=Smooth(.5,1.0)
         self.lock=threading.RLock();self.stop=threading.Event();self.thread=None
         self.gate=ReleaseGate(history,model.name,continuous=continuous)
@@ -62,6 +63,7 @@ class Engine:
 
     def clear_safety(self):
         self.alert.reset(time.monotonic());self.mask_smooth.value=self.arc_smooth.value=None
+        if self.siren:self.siren.desligar()
         self.state.update(mask_state=None,mask_prob=None,arc=False,arc_prob=None,alert_on=False)
 
     def watchdog(self):
@@ -186,6 +188,7 @@ class Engine:
                     self.person=person
                     alert_on=self.alert.update(arc and mask_state=='levantada',now,
                                                {'mask_prob':mask_p,'arc_prob':arc_p,'arc_test':arc_test})
+                    if self.siren:self.siren.ligar(alert_on)
                     if alert_on:
                         cv2.rectangle(annotated,(0,0),(annotated.shape[1]-1,annotated.shape[0]-1),(0,0,255),24)
                         ok,jpeg=cv2.imencode('.jpg',annotated,[cv2.IMWRITE_JPEG_QUALITY,88])
@@ -217,6 +220,7 @@ class Engine:
                           led_green=self.state['status']=='released',led_red=self.state['status']!='released',
                           mask_model=self.mask_model.name if self.mask_model else None,
                           arc_model=self.arc_model.name if self.arc_model else None,arc_test=self.arc_test,
+                          local_siren=bool(self.siren and self.siren.disponivel),siren_error=self.siren.erro if self.siren else None,
                           alert_seconds=round(time.monotonic()-self.alert.started) if self.alert.started is not None else 0)
             return result
 
@@ -230,6 +234,7 @@ def main():
     parser.add_argument('--arco-modelo',type=Path,default=latest_weight('arco_cls'),help='classificador arco/sem_arco')
     parser.add_argument('--imgsz',type=int,default=640)
     parser.add_argument('--luvas',type=int,choices=[1,2],default=1)
+    parser.add_argument('--sem-sirene',action='store_true',help='não toca a sirene neste computador (só o aviso no navegador)')
     parser.add_argument('--continuo',action='store_true',help='Exige os EPIs o tempo todo, e não só na liberação')
     parser.add_argument('--db',type=Path,default=ROOT/'dados_dashboard/epis.sqlite3')
     parser.add_argument('--abrir',action='store_true')
@@ -238,7 +243,8 @@ def main():
     for extra in (args.mascara_modelo,args.arco_modelo):
         if extra and not extra.is_file():parser.error(f'Modelo não encontrado: {extra}')
     camera=int(args.camera) if args.camera.isdigit() else args.camera
-    history=History(args.db);engine=Engine(history,args.modelo,camera,args.imgsz,args.luvas,args.continuo,args.mascara_modelo,args.arco_modelo)
+    siren=Sirene(args.db.parent/'sirene.wav',ativa=not args.sem_sirene)
+    history=History(args.db);engine=Engine(history,args.modelo,camera,args.imgsz,args.luvas,args.continuo,args.mascara_modelo,args.arco_modelo,siren)
     token=secrets.token_urlsafe(32)
 
     class Handler(BaseHTTPRequestHandler):
@@ -307,11 +313,12 @@ def main():
     url=f'http://127.0.0.1:{args.port}'
     print(f'Dashboard local: {url}\nHistórico: {args.db}\nLEDs simulados; nenhum equipamento físico conectado.',flush=True)
     print('Máscara: '+(args.mascara_modelo.name if args.mascara_modelo else 'sem classificador (alerta desativado)'),flush=True)
+    print('Sirene: '+('neste computador (deixe o volume do Windows no máximo)' if siren.disponivel else (siren.erro or 'desativada; só no navegador')),flush=True)
     print('Arco: '+(args.arco_modelo.name if args.arco_modelo else 'sem modelo (use Simular arco para testar)'),flush=True)
     if args.abrir:webbrowser.open(url)
     try:server.serve_forever()
     except KeyboardInterrupt:pass
-    finally:engine.halt();server.server_close()
+    finally:engine.halt();siren.desligar();server.server_close()
 
 
 if __name__=='__main__':main()
